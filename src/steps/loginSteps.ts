@@ -9,6 +9,38 @@ import { ICustomWorld } from '../support/world';
 import { LoginPage } from '../pages';
 
 // Step definitions for login scenarios
+const loginData: { username: string; password: string }[] = (global as any).LOGIN_DATA;
+
+/**
+ * New DDT step: iterates through all users in Excel
+ */
+Given('I perform login using Excel data', async function (this: ICustomWorld) {
+  const page = this.page;
+  const loginPage = new LoginPage(page);
+
+  for (const row of loginData) {
+    this.logger.info(`🔐 Performing login for user: ${row.username}`);
+
+    await loginPage.navigateToLoginPage();
+    await loginPage.isPageLoaded();
+
+    await loginPage.enterUsername(row.username);
+    await loginPage.enterPassword(row.password);
+    this.logger.info(`Entered credentials: username="${row.username}", password="${row.password.replace(/./g, '*')}"`);
+
+    await loginPage.clickLoginButton();
+    await loginPage.waitForLoginToComplete();
+
+    // Verification after login
+    const currentUrl = await page.url();
+    expect(currentUrl).toContain('/todos');
+    this.logger.info(`✅ Login successful for user: ${row.username}`);
+
+    // Optional: logout to prepare for next user
+    // await loginPage.logout();
+  }
+});
+
 
 Given('I am on the login page', async function (this: ICustomWorld) {
     const loginPage = new LoginPage(this.page);

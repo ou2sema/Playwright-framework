@@ -9,8 +9,17 @@ import { Before, After, BeforeAll, AfterAll,Status  } from '@cucumber/cucumber';
 import { ICustomWorld } from './world';
 import Logger from '../utils/logger';
 import { ScreenshotManager } from '../utils/ScreenshotManager';
+import { DataLoader } from '@/data/dataLoader';
+import { generateLoginFeature } from "../data/generators/scenarioGenerator";
 // Global setup before all scenarios
+
+let loginData: any[] = [];
 BeforeAll(async function () {
+    console.log("Generating login DDT feature file...");
+  generateLoginFeature();
+    loginData = DataLoader.loadLoginData();
+  console.log("Loaded login test data:", loginData);
+  (global as any).LOGIN_DATA = loginData;
     Logger.info('🚀 Starting test execution...');
     // Add any global setup here (e.g., API server start)
     Logger.info('✅ Test environment initialized');
