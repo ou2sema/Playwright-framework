@@ -357,4 +357,220 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
+
+Data-Driven Testing (DDT) Implementation Guide: Multi-Sheet Excel
+
+This guide details the implementation of a robust Data-Driven Testing (DDT) layer within the TypeScript framework, allowing test data to be managed centrally in a multi-sheet Excel file. This approach adheres to the best practice of separating test logic from test data, significantly improving maintainability and test coverage.
+
+1. Affected Files and Dependencies
+
+To implement multi-sheet Excel reading, the following files and dependencies were created or modified:
+
+File/Dependency
+Status
+Purpose
+xlsx
+New Dependency
+Core library for reading and parsing Excel files (.xlsx).
+@types/xlsx
+New Dependency
+TypeScript definitions for the xlsx library.
+src/utils/dataService.ts
+New File
+Contains the logic to load and cache data from all sheets in the Excel file.
+src/support/hooks.ts
+Modified
+Added a BeforeAll hook to ensure the Excel data is loaded once before any test runs.
+src/steps/loginSteps.ts
+Modified
+Updated to use the dataService to retrieve credentials and expected results based on a test_case_id.
+src/features/login.feature
+Modified
+Updated the Gherkin scenario to use a Scenario Outline driven by the test_case_id from the Excel file.
+test_data.xlsx
+New File
+The central Excel file containing sheets like 'Login' and 'Todo'.
+
+
+2. Implementation Details
+
+2.1. The Data Service (src/utils/dataService.ts)
+
+This new utility is the core of the DDT layer. It uses the xlsx library to read the entire Excel workbook and cache the data from each sheet under its respective sheet name.
+
+Key Features of dataService.ts:
+
+•
+loadData(filePath): Reads the Excel file, iterates through all sheets, converts each sheet to a JSON array, and stores it in an internal cache.
+
+•
+getData(sheetName): Retrieves all data rows for a given sheet name.
+
+•
+getSingleData(sheetName, key, value): Retrieves a single data row by matching a key (e.g., test_case_id) with a specific value.
+
+TypeScript
+
+
+// src/utils/dataService.ts (Code Snippet)
+import * as XLSX from 'xlsx';
+// ... other imports
+
+class DataService {
+    private cache: DataCache = {};
+    // ... constructor and logger
+
+    public loadData(filePath: string = EXCEL_FILE_PATH): void {
+        // ... error handling and path resolution
+        const workbook = XLSX.readFile(filePath);
+        
+        workbook.SheetNames.forEach(sheetName => {
+            const worksheet = workbook.Sheets[sheetName];
+            const data = XLSX.utils.sheet_to_json(worksheet);
+            this.cache[sheetName] = data;
+            this.logger.info(`Successfully loaded ${data.length} rows from sheet: ${sheetName}`);
+        });
+    }
+
+    public getSingleData(sheetName: string, key: string, value: any): any | undefined {
+        const data = this.getData(sheetName);
+        return data.find(row => row[key] === value);
+    }
+}
+
+export const dataService = new DataService();
+
+
+2.2. Data Loading Hook (src/support/hooks.ts)
+
+To ensure the data is loaded only once before the entire test suite begins, the dataService.loadData() call is placed within the BeforeAll hook.
+
+TypeScript
+
+
+// src/support/hooks.ts (Code Snippet)
+import { BeforeAll } from '@cucumber/cucumber';
+import { dataService } from '../utils/dataService'; 
+// ... other imports
+
+// Define the path to the Excel file
+const EXCEL_FILE_NAME = 'test_data.xlsx';
+const EXCEL_FILE_PATH = path.join(process.cwd(), EXCEL_FILE_NAME);
+
+BeforeAll(async function () {
+    // ... logger initialization
+    try {
+        dataService.loadData(EXCEL_FILE_PATH);
+    } catch (error) {
+        // Handle fatal error if data loading fails
+    }
+    // ...
+});
+
+
+2.3. Updated Step Definitions (src/steps/loginSteps.ts)
+
+The login step definitions are refactored to retrieve the data from the service instead of relying on hardcoded values or Gherkin tables.
+
+New Step: When I login with data from test case ID {string}
+
+This step encapsulates the data retrieval and the action:
+
+TypeScript
+
+
+// src/steps/loginSteps.ts (Code Snippet)
+import { dataService } from '../utils/dataService'; 
+// ... other imports
+
+When('I login with data from test case ID {string}', async function (this: ICustomWorld, testCaseId: string) {
+    // 1. Get data from the 'Login' sheet
+    const loginData = dataService.getSingleData('Login', 'test_case_id', testCaseId);
+    
+    if (!loginData) {
+        throw new Error(`Test data not found for test case ID: ${testCaseId} in 'Login' sheet.`);
+    }
+    
+    const username = loginData.username || '';
+    const password = loginData.password || '';
+    
+    // Store expected result for later assertion
+    this.testData.expectedResult = loginData.expected_result;
+    
+    const loginPage = new LoginPage(this.page);
+    await loginPage.enterUsername(username);
+    await loginPage.enterPassword(password);
+});
+
+
+New Step: Then the login result should match the expected outcome
+
+This step uses the stored expectedResult to perform the correct assertion (Success or Error), making the assertion logic data-driven as well.
+
+TypeScript
+
+
+// src/steps/loginSteps.ts (Code Snippet)
+Then('the login result should match the expected outcome', async function (this: ICustomWorld) {
+    const expectedResult = this.testData.expectedResult;
+    
+    if (expectedResult.startsWith('Success')) {
+        // Expected Success: Check for redirection to /todos
+        // ... assertion logic
+    } else if (expectedResult.startsWith('Error:')) {
+        // Expected Error: Check for error message and remaining on login page
+        // ... assertion logic
+    }
+});
+
+
+2.4. Updated Feature File (src/features/login.feature)
+
+The feature file now uses a Scenario Outline to iterate over the test_case_id column, which is the only data point needed in the Gherkin file.
+
+Plain Text
+
+
+# src/features/login.feature (Code Snippet)
+Scenario Outline: Data-Driven Login Test
+  When I login with data from test case ID "<test_case_id>"
+  And I click the login button
+  Then the login result should match the expected outcome
+  
+  Examples:
+    | test_case_id |
+    | TC-LOGIN-001 | # Valid Login
+    | TC-LOGIN-002 | # Invalid Password
+    | TC-LOGIN-003 | # Invalid Username
+    | TC-LOGIN-004 | # Empty Credentials
+    | TC-LOGIN-005 | # Locked Account
+    | TC-LOGIN-006 | # Admin Login
+    | TC-LOGIN-007 | # Guest Login
+
+
+3. Next Steps for the User
+
+To fully utilize this DDT implementation, you must perform the following:
+
+1.
+Create the Excel File: Create a file named test_data.xlsx in the root of your framework directory (ts-test-framework/).
+
+2.
+Populate the Sheets:
+
+•
+Sheet 1 (Login): Must contain the columns: test_case_id, scenario, username, password, expected_result, expected_status_code.
+
+•
+Sheet 2 (Todo): Must contain the columns: test_case_id, scenario, title, description, priority, expected_result (for future Todo DDT).
+
+
+
+3.
+Run Tests: Execute your tests using npm test. The framework will automatically load the data and execute the login scenarios based on the test_case_id values provided in the Gherkin file.
+
+This new DDT layer provides a powerful, centralized, and highly maintainable way to manage your test data for all future features.
+
+
+
 **Happy Testing! 🎉**
