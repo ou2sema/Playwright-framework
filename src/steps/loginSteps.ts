@@ -7,38 +7,71 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { ICustomWorld } from '../support/world';
 import { LoginPage } from '../pages';
+import { dataService } from '../utils/dataService';
+// --- New Step Definition for Data-Driven Login ---
 
-// Step definitions for login scenarios
-const loginData: { username: string; password: string }[] = (global as any).LOGIN_DATA;
+When('I login with data from test case ID {string}', async function (this: ICustomWorld, testCaseId: string) {
+    // 1. Get data from the 'Login' sheet using the testCaseId
+    const loginData = dataService.getSingleData('Login', 'test_case_id', testCaseId);
+    
+    if (!loginData) {
+        throw new Error(`Test data not found for test case ID: ${testCaseId} in 'Login' sheet.`);
+    }
+    
+    const username = loginData.username || '';
+    const password = loginData.password || '';
+    
+    // Store expected result for later assertion
+    this.testData.expectedResult = loginData.expected_result;
+    
+    const loginPage = new LoginPage(this.page);
+    await loginPage.enterUsername(username);
+    await loginPage.enterPassword(password);
+    this.logger.info(`Entered credentials for test case ${testCaseId}: username="${username}", password="${password.replace(/./g, '*')}"`);
+});
 
-/**
- * New DDT step: iterates through all users in Excel
- */
-Given('I perform login using Excel data', async function (this: ICustomWorld) {
-  const page = this.page;
-  const loginPage = new LoginPage(page);
+// --- Updated Step Definition for Login Button Click ---
 
-  for (const row of loginData) {
-    this.logger.info(`🔐 Performing login for user: ${row.username}`);
-
-    await loginPage.navigateToLoginPage();
-    await loginPage.isPageLoaded();
-
-    await loginPage.enterUsername(row.username);
-    await loginPage.enterPassword(row.password);
-    this.logger.info(`Entered credentials: username="${row.username}", password="${row.password.replace(/./g, '*')}"`);
-
+When('I click the login button', async function (this: ICustomWorld) {
+    const loginPage = new LoginPage(this.page);
     await loginPage.clickLoginButton();
     await loginPage.waitForLoginToComplete();
+    this.logger.info('Clicked login button and waited for completion');
+});
 
-    // Verification after login
-    const currentUrl = await page.url();
-    expect(currentUrl).toContain('/todos');
-    this.logger.info(`✅ Login successful for user: ${row.username}`);
+// --- Updated Step Definition for Assertion ---
 
-    // Optional: logout to prepare for next user
-    // await loginPage.logout();
-  }
+Then('the login result should match the expected outcome', async function (this: ICustomWorld) {
+    const expectedResult = this.testData.expectedResult;
+    
+    if (!expectedResult) {
+        throw new Error('Expected result not set in test data.');
+    }
+    
+    const loginPage = new LoginPage(this.page);
+    const currentUrl = await this.page.url();
+    
+    if (expectedResult.startsWith('Success')) {
+        // Expected Success: Check for redirection to /todos
+        //const todosHeader = this.page.locator('[data-testid="todos-header"]');
+  //await expect(todosHeader).toHaveText('My Tasks');
+  this.logger.info('Verified todos page header: My Tasks');
+        const todosHeader = this.page.locator('[data-testid="todos-header"]');
+        expect(todosHeader).toHaveText('My Tasks');
+        this.logger.info(`Verified successful login and redirection to: ${currentUrl}`);
+    } else if (expectedResult.startsWith('Error:')) {
+        // Expected Error: Check for error message and remaining on login page
+        const expectedErrorMessage = expectedResult.replace('Error: ', '');
+        
+        await loginPage.assertErrorMessageDisplayed();
+        const actualMessage = await loginPage.getErrorMessage();
+        expect(actualMessage).toContain(expectedErrorMessage);
+        
+        expect(currentUrl).toContain('/login');
+        this.logger.info(`Verified failed login with error: ${expectedErrorMessage}`);
+    } else {
+        throw new Error(`Unknown expected result format: ${expectedResult}`);
+    }
 });
 
 

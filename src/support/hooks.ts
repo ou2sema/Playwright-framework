@@ -9,17 +9,22 @@ import { Before, After, BeforeAll, AfterAll,Status  } from '@cucumber/cucumber';
 import { ICustomWorld } from './world';
 import Logger from '../utils/logger';
 import { ScreenshotManager } from '../utils/ScreenshotManager';
-import { DataLoader } from '@/data/dataLoader';
-import { generateLoginFeature } from "../data/generators/scenarioGenerator";
+import { dataService } from '../utils/dataService'; // Import the data service
+import * as path from 'path';
 // Global setup before all scenarios
 
-let loginData: any[] = [];
+const EXCEL_FILE_NAME = '/test-data/test_data.xlsx';
+const EXCEL_FILE_PATH = path.join(process.cwd(), EXCEL_FILE_NAME);
 BeforeAll(async function () {
-    console.log("Generating login DDT feature file...");
-  generateLoginFeature();
-    loginData = DataLoader.loadLoginData();
-  console.log("Loaded login test data:", loginData);
-  (global as any).LOGIN_DATA = loginData;
+    // Load data from the multi-sheet Excel file
+    try {
+        dataService.loadData(EXCEL_FILE_PATH);
+    } catch (error) {
+        Logger.error(`FATAL: Could not load test data from ${EXCEL_FILE_NAME}. Test execution aborted.`);
+        // In a real scenario, you might want to exit the process here
+        // process.exit(1);
+    }
+  
     Logger.info('🚀 Starting test execution...');
     // Add any global setup here (e.g., API server start)
     Logger.info('✅ Test environment initialized');
