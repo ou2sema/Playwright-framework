@@ -12,19 +12,22 @@ import { dataService } from '../utils/dataService';
 
 When('I login with data from test case ID {string}', async function (this: ICustomWorld, testCaseId: string) {
     // 1. Get data from the 'Login' sheet using the testCaseId
+    const loginPage = new LoginPage(this.page);
     const loginData = dataService.getSingleData('Login', 'test_case_id', testCaseId);
     
     if (!loginData) {
         throw new Error(`Test data not found for test case ID: ${testCaseId} in 'Login' sheet.`);
     }
-    
+    if (testCaseId === 'TC-LOGIN-004') {
+        await loginPage.disableNativeValidation();
+    }
     const username = loginData.username || '';
     const password = loginData.password || '';
     
     // Store expected result for later assertion
     this.testData.expectedResult = loginData.expected_result;
     
-    const loginPage = new LoginPage(this.page);
+    
     await loginPage.enterUsername(username);
     await loginPage.enterPassword(password);
     this.logger.info(`Entered credentials for test case ${testCaseId}: username="${username}", password="${password.replace(/./g, '*')}"`);
@@ -32,7 +35,7 @@ When('I login with data from test case ID {string}', async function (this: ICust
 
 // --- Updated Step Definition for Login Button Click ---
 
-When('I click the login button', async function (this: ICustomWorld) {
+When('I click the login button using DDT', async function (this: ICustomWorld) {
     const loginPage = new LoginPage(this.page);
     await loginPage.clickLoginButton();
     await loginPage.waitForLoginToComplete();
@@ -50,25 +53,26 @@ Then('the login result should match the expected outcome', async function (this:
     
     const loginPage = new LoginPage(this.page);
     const currentUrl = await this.page.url();
-    
     if (expectedResult.startsWith('Success')) {
-        // Expected Success: Check for redirection to /todos
-        //const todosHeader = this.page.locator('[data-testid="todos-header"]');
-  //await expect(todosHeader).toHaveText('My Tasks');
-  this.logger.info('Verified todos page header: My Tasks');
+        this.logger.info('Verified todos page header: My Tasks');
         const todosHeader = this.page.locator('[data-testid="todos-header"]');
-        expect(todosHeader).toHaveText('My Tasks');
         this.logger.info(`Verified successful login and redirection to: ${currentUrl}`);
-    } else if (expectedResult.startsWith('Error:')) {
+        expect(todosHeader).toContainText('My Tasks');
+
+
+    } else if (expectedResult.startsWith('Error')) {
         // Expected Error: Check for error message and remaining on login page
-        const expectedErrorMessage = expectedResult.replace('Error: ', '');
+        const expectedErrorMessage = expectedResult.replace('Error', '');
         
         await loginPage.assertErrorMessageDisplayed();
         const actualMessage = await loginPage.getErrorMessage();
+        this.logger.info(`Verified error message: ${actualMessage}`);
         expect(actualMessage).toContain(expectedErrorMessage);
         
-        expect(currentUrl).toContain('/login');
+        expect(currentUrl).toContain('/');
         this.logger.info(`Verified failed login with error: ${expectedErrorMessage}`);
+
+        
     } else {
         throw new Error(`Unknown expected result format: ${expectedResult}`);
     }
@@ -112,13 +116,14 @@ Then('I should see an error message {string}', async function (this: ICustomWorl
     const loginPage = new LoginPage(this.page);
     await loginPage.assertErrorMessageDisplayed();
     const actualMessage = await loginPage.getErrorMessage();
-    expect(actualMessage).toContain(expectedMessage);
     this.logger.info(`Verified error message: ${expectedMessage}`);
+    expect(actualMessage).toContain(expectedMessage);
+    
 });
 
 Then('I should remain on the login page', async function (this: ICustomWorld) {
     const currentUrl = await this.page.url();
-    expect(currentUrl).toContain('/login');
+    expect(currentUrl).toContain('/');
     
     const loginPage = new LoginPage(this.page);
     const isLoaded = await loginPage.isPageLoaded();

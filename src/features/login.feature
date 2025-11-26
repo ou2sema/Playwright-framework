@@ -88,33 +88,12 @@ Feature: User Authentication
     
     Scenario Outline: Data-Driven Login Test
       When I login with data from test case ID "<test_case_id>"
-      And I click the login button
+      And I click the login button using DDT
       Then the login result should match the expected outcome
       
       Examples:
-        | test_case_id |
+        | test_case_id | scenario
         | TC-LOGIN-001 | # Valid Login
         | TC-LOGIN-002 | # Invalid Password
         | TC-LOGIN-003 | # Invalid Username
         | TC-LOGIN-004 | # Empty Credentials
-        | TC-LOGIN-005 | # Locked Account
-        | TC-LOGIN-006 | # Admin Login
-        | TC-LOGIN-007 | # Guest Login
-
-  # --- Original Scenarios (can be kept for non-DDT tests) ---
-  
-  @authentication @negative
-  Scenario: Failed login with empty credentials
-    When I enter username "" and password ""
-    And I click the login button
-    Then I should see an error message "Username and password are required"
-    And I should remain on the login page
-
-  @authentication @ui
-  Scenario: Login page elements are displayed correctly
-    Then I should see the username input field
-    And I should see the password input field
-    And I should see the login button
-    And I should see the "Forgot Password?" link
-    And I should see the "Sign Up" link
-

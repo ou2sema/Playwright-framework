@@ -235,6 +235,33 @@ async isLoginTabVisible(): Promise<boolean> {
     return this.page.isVisible('[data-testid="tab-login"]');
   }
 
+
+// src/pages/loginPage.ts (Updated disableNativeValidation method)
+
+    /**
+     * Disables native HTML5 form validation for the login form.
+     * This is necessary to test application-level validation messages.
+     */
+    public async disableNativeValidation(): Promise<void> {
+        this.logger.info('Disabling native HTML5 form validation.');
+        await this.page.evaluate(() => {
+            // Target the first form element on the page, which is likely the login form
+            const form = document.querySelector('form'); 
+            if (form) {
+                // Set the novalidate attribute on the form to bypass HTML5 validation
+                form.setAttribute('novalidate', 'true');
+            }
+            
+            // As a fallback, remove 'required' attribute from all inputs within the form
+            const requiredInputs = document.querySelectorAll('form input[required]');
+            requiredInputs.forEach(input => {
+                input.removeAttribute('required');
+            });
+        });
+    }
+
+  
+
     /**
      * Check if the forgot password link is visible.
      
